@@ -114,21 +114,102 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 800 + Math.random() * 1000);
     }
 
-    function handleSend() {
+    async function handleSend() {
         const query = queryInput.value.trim();
         if (!query) return;
 
         appendMessage(query, 'user');
         queryInput.value = '';
 
-        // Mock response
-        simulateEntityResponse(`Processing frequency for "${query}"... My current database is unlinked to the server. Awaiting backend synchronization.`);
+        try {
+            const formData = new FormData();
+            formData.append('query', query);
+
+            const response = await fetch('http://localhost:8000/query/text', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            
+            let reply = data.answer;
+            if (data.timings) {
+                reply += `\n\n[Latency - Total: ${(data.timings.total * 1000).toFixed(2)}ms]`;
+            }
+            simulateEntityResponse(reply);
+        } catch (err) {
+            simulateEntityResponse(`Connection error: ${err.message}`);
+        }
     }
 
     sendBtn.addEventListener('click', handleSend);
     queryInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             handleSend();
+        }
+    });
+
+    // ---- Voice Recording Logic ----
+    const micBtn = document.getElementById('micBtn');
+    let mediaRecorder;
+    let audioChunks = [];
+
+    micBtn.addEventListener('mousedown', async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                
+                // Show analyzing state
+                simulateEntityResponse('Analyzing audio frequency...');
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'voice.wav');
+
+                    const response = await fetch('http://localhost:8000/query/audio', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    
+                    let reply = `[Transcribed: "${data.query}"]\n\n${data.answer}`;
+                    if (data.timings) {
+                        reply += `\n\n[Latency - STT: ${(data.timings.stt * 1000).toFixed(2)}ms, Total: ${(data.timings.total * 1000).toFixed(2)}ms]`;
+                    }
+                    simulateEntityResponse(reply);
+                } catch (err) {
+                    simulateEntityResponse(`Audio Processing Error: ${err.message}`);
+                }
+            };
+
+            mediaRecorder.start();
+            micBtn.classList.add('recording');
+        } catch (err) {
+            alert('Microphone access denied or not available.');
+        }
+    });
+
+    micBtn.addEventListener('mouseup', () => {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+            micBtn.classList.remove('recording');
+            mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        }
+    });
+    
+    // Also stop on mouse leave in case user drags mouse off button
+    micBtn.addEventListener('mouseleave', () => {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+            micBtn.classList.remove('recording');
+            mediaRecorder.stream.getTracks().forEach(track => track.stop());
         }
     });
 });

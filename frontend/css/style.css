@@ -284,6 +284,19 @@ body::before {
     transform: scale(0.95);
 }
 
+.mic-btn.recording {
+    background: var(--accent-amber-dim);
+    box-shadow: 0 0 20px var(--accent-amber);
+    border-color: var(--accent-amber);
+    color: var(--accent-amber);
+    animation: pulse-record 1s infinite alternate;
+}
+
+@keyframes pulse-record {
+    0% { transform: scale(1); box-shadow: 0 0 10px var(--accent-amber); }
+    100% { transform: scale(1.1); box-shadow: 0 0 30px var(--accent-amber); }
+}
+
 /* Glitch effect on entity text */
 .glitch-text {
     position: relative;
